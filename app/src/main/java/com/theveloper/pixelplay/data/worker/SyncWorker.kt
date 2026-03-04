@@ -861,7 +861,7 @@ constructor(
                                                                 ?.takeIf { it.isNotBlank() }
                                                 else null,
                                         duration = cursor.getLong(durationCol),
-                                        trackNumber = cursor.getInt(trackCol),
+                                        trackNumber = cursor.getInt(trackCol) % 1000,
                                         year = cursor.getInt(yearCol),
                                         dateModified = cursor.getLong(dateModifiedCol)
                                 )

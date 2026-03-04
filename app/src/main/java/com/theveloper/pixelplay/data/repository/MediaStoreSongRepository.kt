@@ -189,7 +189,7 @@ class MediaStoreSongRepository @Inject constructor(
                         genre = songIdToGenreMap[id],
                         lyrics = null,
                         isFavorite = favoriteIds.contains(id),
-                        trackNumber = cursor.getInt(trackCol),
+                        trackNumber = cursor.getInt(trackCol) % 1000,
                         year = cursor.getInt(yearCol),
                         dateAdded = cursor.getLong(dateAddedCol),
                         dateModified = cursor.getLong(dateModifiedCol),

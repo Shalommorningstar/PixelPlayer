@@ -2891,6 +2891,7 @@ class PlayerViewModel @Inject constructor(
                 val success = metadataEditStateHolder.deleteSong(song)
                 if (success) {
                     removeFromMediaControllerQueue(song.id)
+                    removeSong(song)
                     successCount++
                 }
             }
