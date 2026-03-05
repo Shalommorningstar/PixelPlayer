@@ -1,12 +1,15 @@
 package com.theveloper.pixelplay.data.stats
 
 import android.content.Context
+import android.util.AtomicFile
 import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.reflect.TypeToken
 import com.theveloper.pixelplay.data.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.io.FileNotFoundException
+import java.io.FileOutputStream
 import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
@@ -22,10 +25,15 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import timber.log.Timber
 
 @Singleton
 class PlaybackStatsRepository @Inject constructor(
@@ -34,8 +42,11 @@ class PlaybackStatsRepository @Inject constructor(
 
     private val gson = Gson()
     private val historyFile = File(context.filesDir, "playback_history.json")
+    private val atomicHistoryFile = AtomicFile(historyFile)
     private val fileLock = Any()
     private val eventsType = object : TypeToken<MutableList<PlaybackEvent>>() {}.type
+    private val _refreshVersion = MutableStateFlow(0L)
+    val refreshFlow: StateFlow<Long> = _refreshVersion.asStateFlow()
 
     private val sessionGapThresholdMs = TimeUnit.MINUTES.toMillis(30)
 
@@ -167,7 +178,7 @@ class PlaybackStatsRepository @Inject constructor(
             startTimestamp = start,
             endTimestamp = coercedTimestamp
         )
-        synchronized(fileLock) {
+        val writeSucceeded = synchronized(fileLock) {
             val events = readEventsLocked()
             val cutoff = sanitizedEvent.endMillis() - MAX_HISTORY_AGE_MS
             if (cutoff > 0) {
@@ -175,6 +186,9 @@ class PlaybackStatsRepository @Inject constructor(
             }
             events += sanitizedEvent
             writeEventsLocked(events)
+        }
+        if (writeSucceeded) {
+            notifyStatsChanged()
         }
     }
 
@@ -449,7 +463,7 @@ class PlaybackStatsRepository @Inject constructor(
         events: List<PlaybackEvent>,
         clearExisting: Boolean = true
     ) = withContext(Dispatchers.IO) {
-        synchronized(fileLock) {
+        val writeSucceeded = synchronized(fileLock) {
             val base = if (clearExisting) {
                 emptyList()
             } else {
@@ -464,15 +478,26 @@ class PlaybackStatsRepository @Inject constructor(
                 .toMutableList()
             writeEventsLocked(merged)
         }
+        if (writeSucceeded) {
+            notifyStatsChanged()
+        }
+    }
+
+    fun requestRefresh() {
+        notifyStatsChanged()
     }
 
     private fun readEvents(): List<PlaybackEvent> = synchronized(fileLock) { readEventsLocked() }
 
     private fun readEventsLocked(): MutableList<PlaybackEvent> {
-        if (!historyFile.exists()) {
-            return mutableListOf()
+        val raw = runCatching {
+            atomicHistoryFile.openRead().bufferedReader(Charsets.UTF_8).use { it.readText() }
         }
-        val raw = runCatching { historyFile.readText() }
+            .onFailure { throwable ->
+                if (throwable !is FileNotFoundException) {
+                    Timber.e(throwable, "Failed reading playback history")
+                }
+            }
             .getOrNull()
             ?.takeIf { it.isNotBlank() }
             ?: return mutableListOf()
@@ -480,7 +505,10 @@ class PlaybackStatsRepository @Inject constructor(
         return runCatching {
             val element = gson.fromJson(raw, JsonElement::class.java)
             parseElement(element)
-        }.getOrElse { mutableListOf() }
+        }.getOrElse { throwable ->
+            Timber.e(throwable, "Failed parsing playback history")
+            mutableListOf()
+        }
     }
 
     private fun parseElement(element: JsonElement?): MutableList<PlaybackEvent> {
@@ -757,14 +785,25 @@ class PlaybackStatsRepository @Inject constructor(
         return sessions
     }
 
-    private fun writeEventsLocked(events: MutableList<PlaybackEvent>) {
+    private fun writeEventsLocked(events: MutableList<PlaybackEvent>): Boolean {
         val sanitized = events.map { sanitizeEvent(it) }
-        runCatching {
-            historyFile.parentFile?.let { parent ->
-                if (!parent.exists()) parent.mkdirs()
+        var outputStream: FileOutputStream? = null
+        return runCatching {
+            val parent = historyFile.parentFile
+            if (parent != null && !parent.exists() && !parent.mkdirs()) {
+                Timber.w("Unable to ensure playback history directory: ${parent.absolutePath}")
             }
-            historyFile.writeText(gson.toJson(sanitized))
-        }
+            val payload = gson.toJson(sanitized).toByteArray(Charsets.UTF_8)
+            outputStream = atomicHistoryFile.startWrite()
+            outputStream?.write(payload)
+            outputStream?.fd?.sync()
+            outputStream?.let { atomicHistoryFile.finishWrite(it) }
+            outputStream = null
+            true
+        }.onFailure { throwable ->
+            outputStream?.let { stream -> atomicHistoryFile.failWrite(stream) }
+            Timber.e(throwable, "Failed to persist playback history")
+        }.getOrDefault(false)
     }
 
     private fun accumulateTimelineEntries(
@@ -977,6 +1016,16 @@ class PlaybackStatsRepository @Inject constructor(
         val end = (endTimestamp ?: timestamp).coerceAtLeast(0L)
         val start = startMillis()
         return max(end, start)
+    }
+
+    private fun notifyStatsChanged() {
+        _refreshVersion.update { current ->
+            if (current == Long.MAX_VALUE) {
+                1L
+            } else {
+                current + 1L
+            }
+        }
     }
 
     companion object {
