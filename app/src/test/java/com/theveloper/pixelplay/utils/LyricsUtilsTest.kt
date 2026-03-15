@@ -2,6 +2,7 @@ package com.theveloper.pixelplay.utils
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -194,5 +195,57 @@ class LyricsUtilsTest {
         assertEquals("To fall in love\\n怦然心动", first.line)
         assertEquals(listOf("To ", "fall ", "in ", "love"), words.map { it.word })
         assertTrue(words.none { it.word.contains("怦然心动") })
+    }
+
+    @Test
+    fun parseLyrics_pairsSameTimestampLinesAsTranslation() {
+        val lrc = "[00:10.00]Hello world\n[00:10.00]你好世界\n[00:20.00]Goodbye"
+
+        val lyrics = LyricsUtils.parseLyrics(lrc)
+        val synced = requireNotNull(lyrics.synced)
+
+        assertEquals(2, synced.size)
+        assertEquals("Hello world", synced[0].line)
+        assertEquals("你好世界", synced[0].translation)
+        assertEquals("Goodbye", synced[1].line)
+        assertNull(synced[1].translation)
+    }
+
+    @Test
+    fun parseLyrics_singleLineWithoutDuplicate_translationIsNull() {
+        val lrc = "[00:10.00]Hello world\n[00:20.00]Goodbye\n[00:30.00]See you"
+
+        val lyrics = LyricsUtils.parseLyrics(lrc)
+        val synced = requireNotNull(lyrics.synced)
+
+        assertEquals(3, synced.size)
+        synced.forEach { assertNull(it.translation) }
+    }
+
+    @Test
+    fun parseLyrics_threeLinesAtSameTimestamp_pairsFirstTwoOnly() {
+        val lrc = "[00:10.00]Hello world\n[00:10.00]你好世界\n[00:10.00]Hola mundo"
+
+        val lyrics = LyricsUtils.parseLyrics(lrc)
+        val synced = requireNotNull(lyrics.synced)
+
+        assertEquals(2, synced.size)
+        assertEquals("Hello world", synced[0].line)
+        assertEquals("你好世界", synced[0].translation)
+        assertEquals("Hola mundo", synced[1].line)
+        assertNull(synced[1].translation)
+    }
+
+    @Test
+    fun parseLyrics_nonTimestampedLinePreservedAsMerge_notTranslation() {
+        // Non-timestamped lines after a synced line are merged into line text (existing behavior)
+        val lrc = "[00:10.00]Hello world\ncontinuation line\n[00:20.00]Next"
+
+        val lyrics = LyricsUtils.parseLyrics(lrc)
+        val synced = requireNotNull(lyrics.synced)
+
+        assertEquals(2, synced.size)
+        assertEquals("Hello world\ncontinuation line", synced[0].line)
+        assertNull(synced[0].translation)
     }
 }
