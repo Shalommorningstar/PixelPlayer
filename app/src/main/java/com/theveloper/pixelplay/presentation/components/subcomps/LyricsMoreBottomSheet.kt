@@ -49,7 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Lyrics
-import com.theveloper.pixelplay.presentation.components.LocalMaterialTheme
+import com.theveloper.pixelplay.presentation.components.ToggleSegmentButton
 import com.theveloper.pixelplay.presentation.components.player.BottomToggleRow
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -212,50 +212,78 @@ fun LyricsMoreBottomSheet(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                 Text(
-                     modifier = Modifier
-                         .padding(start = 6.dp, bottom = 6.dp),
-                     text = "Appearance",
-                     color = accentColor,
-                     style = MaterialTheme.typography.bodyLargeEmphasized
+                Text(
+                    modifier = Modifier
+                        .padding(start = 6.dp, bottom = 6.dp),
+                    text = "Appearance",
+                    color = accentColor,
+                    style = MaterialTheme.typography.bodyLargeEmphasized
                  )
-                ListItem(
-                    headlineContent = { Text("Alignment") },
-                    leadingContent = {
-                        Icon(
-                            imageVector = when (lyricsAlignment) {
-                                "center" -> Icons.Rounded.FormatAlignCenter
-                                "right" -> Icons.AutoMirrored.Rounded.FormatAlignRight
-                                else -> Icons.AutoMirrored.Rounded.FormatAlignLeft
-                            },
-                            contentDescription = null
-                        )
-                    },
-                    trailingContent = {
-                        Text(
-                            text = lyricsAlignment.replaceFirstChar { it.uppercase() },
-                            color = contentColor.copy(alpha = 0.7f),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    },
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(24.dp))
                         .background(itemBackgroundColor)
-                        .clickable {
-                            val next = when (lyricsAlignment) {
-                                "left" -> "center"
-                                "center" -> "right"
-                                else -> "left"
-                            }
-                            onLyricsAlignmentChange(next)
-                        },
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        headlineColor = contentColor,
-                        leadingIconColor = contentColor
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Alignment",
+                        color = contentColor,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
                     )
-                )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ToggleSegmentButton(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            active = lyricsAlignment == "left",
+                            activeColor = accentColor,
+                            inactiveColor = containerColor,
+                            activeContentColor = onAccentColor,
+                            inactiveContentColor = contentColor.copy(alpha = 0.78f),
+                            activeCornerRadius = 50.dp,
+                            onClick = { onLyricsAlignmentChange("left") },
+                            imageVector = Icons.AutoMirrored.Rounded.FormatAlignLeft,
+                            contentDesc = "Align lyrics left"
+                        )
+
+                        ToggleSegmentButton(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            active = lyricsAlignment == "center",
+                            activeColor = accentColor,
+                            inactiveColor = containerColor,
+                            activeContentColor = onAccentColor,
+                            inactiveContentColor = contentColor.copy(alpha = 0.78f),
+                            activeCornerRadius = 50.dp,
+                            onClick = { onLyricsAlignmentChange("center") },
+                            imageVector = Icons.Rounded.FormatAlignCenter,
+                            contentDesc = "Align lyrics center"
+                        )
+
+                        ToggleSegmentButton(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            active = lyricsAlignment == "right",
+                            activeColor = accentColor,
+                            inactiveColor = containerColor,
+                            activeContentColor = onAccentColor,
+                            inactiveContentColor = contentColor.copy(alpha = 0.78f),
+                            activeCornerRadius = 50.dp,
+                            onClick = { onLyricsAlignmentChange("right") },
+                            imageVector = Icons.AutoMirrored.Rounded.FormatAlignRight,
+                            contentDesc = "Align lyrics right"
+                        )
+                    }
+                }
             }
 
             // Control Settings Group
@@ -458,7 +486,8 @@ fun LyricsMoreBottomSheet(
                  BottomToggleRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(84.dp),
+                        .height(74.dp)
+                        .padding(horizontal = 20.dp),
                     isShuffleEnabled = isShuffleEnabled,
                     repeatMode = repeatMode,
                     isFavoriteProvider = isFavoriteProvider,

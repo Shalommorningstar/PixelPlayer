@@ -908,8 +908,14 @@ fun FullPlayerContent(
     }
     AnimatedVisibility(
         visible = showLyricsSheet,
-        enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
+        enter = slideInVertically(
+            initialOffsetY = { it / 5 },
+            animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+        ) + fadeIn(animationSpec = tween(durationMillis = 160)),
+        exit = slideOutVertically(
+            targetOffsetY = { it / 6 },
+            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+        ) + fadeOut(animationSpec = tween(durationMillis = 120))
     ) {
         LyricsSheet(
             stablePlayerStateFlow = playerViewModel.stablePlayerState,
