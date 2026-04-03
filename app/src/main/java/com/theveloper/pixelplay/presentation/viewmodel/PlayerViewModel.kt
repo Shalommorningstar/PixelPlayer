@@ -941,6 +941,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private var mediaController: MediaController? = null
+    private var mediaControllerPlaybackListener: Player.Listener? = null
     private val _isMediaControllerReady = MutableStateFlow(false)
     val isMediaControllerReady: StateFlow<Boolean> = _isMediaControllerReady.asStateFlow()
     // SessionToken injected via constructor
@@ -1580,7 +1581,6 @@ class PlayerViewModel @Inject constructor(
         mediaControllerFuture.addListener({
             try {
                 mediaController = mediaControllerFuture.get()
-                mediaController?.addListener(mediaControllerListener)
                 // Pass controller to PlaybackStateHolder
                 playbackStateHolder.setMediaController(mediaController)
                 _isMediaControllerReady.value = true
@@ -2458,7 +2458,8 @@ class PlayerViewModel @Inject constructor(
             }
         }
 
-        playerCtrl.addListener(object : Player.Listener {
+        mediaControllerPlaybackListener?.let(playerCtrl::removeListener)
+        mediaControllerPlaybackListener = object : Player.Listener {
             override fun onVolumeChanged(volume: Float) {
                 _trackVolume.value = volume
             }
@@ -2661,7 +2662,8 @@ class PlayerViewModel @Inject constructor(
                 transitionSchedulerJob?.cancel()
                 updateCurrentPlaybackQueueFromPlayer(mediaController)
             }
-        })
+        }
+        playerCtrl.addListener(checkNotNull(mediaControllerPlaybackListener))
         Trace.endSection()
     }
 
@@ -2954,7 +2956,12 @@ class PlayerViewModel @Inject constructor(
             // Pre-resolve the starting song's cloud URI before ExoPlayer touches it.
             // This populates the resolvedUriCache so resolveDataSpec finds it instantly.
             val startingUri = MediaItemBuilder.playbackUri(effectiveStartSong)
-            if (startingUri.scheme == "telegram" || startingUri.scheme == "netease" || startingUri.scheme == "qqmusic") {
+            if (
+                startingUri.scheme == "telegram" ||
+                startingUri.scheme == "netease" ||
+                startingUri.scheme == "qqmusic" ||
+                startingUri.scheme == "navidrome"
+            ) {
                 if (startingUri.scheme == "telegram") {
                     ensureTelegramPlaybackObserversStarted()
                 }
@@ -2997,6 +3004,31 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    private suspend fun buildResolvedPlaybackMediaItem(song: Song): MediaItem {
+        val mediaItem = MediaItemBuilder.build(song)
+        val originalUri = mediaItem.localConfiguration?.uri ?: return mediaItem
+        val scheme = originalUri.scheme
+        if (
+            scheme != "telegram" &&
+            scheme != "netease" &&
+            scheme != "qqmusic" &&
+            scheme != "navidrome"
+        ) {
+            return mediaItem
+        }
+
+        if (scheme == "telegram") {
+            ensureTelegramPlaybackObserversStarted()
+        }
+
+        val resolvedUri = dualPlayerEngine.resolveCloudUri(originalUri)
+        return if (resolvedUri == originalUri) {
+            mediaItem
+        } else {
+            mediaItem.buildUpon().setUri(resolvedUri).build()
+        }
+    }
+
 
     private fun loadAndPlaySong(song: Song) {
         cancelPendingFullQueuePlayback()
@@ -3018,18 +3050,15 @@ class PlayerViewModel @Inject constructor(
             return
         }
 
-        val mediaItem = MediaItem.Builder()
-            .setMediaId(song.id)
-            .setUri(MediaItemBuilder.playbackUri(song))
-            .setMimeType(song.mimeType)
-            .setMediaMetadata(MediaItemBuilder.build(song).mediaMetadata)
-            .build()
-        if (controller.currentMediaItem?.mediaId == song.id) {
-            if (!controller.isPlaying) controller.play()
-        } else {
-            controller.setMediaItem(mediaItem)
-            controller.prepare()
-            controller.play()
+        viewModelScope.launch {
+            val mediaItem = buildResolvedPlaybackMediaItem(song)
+            if (controller.currentMediaItem?.mediaId == song.id) {
+                if (!controller.isPlaying) controller.play()
+            } else {
+                controller.setMediaItem(mediaItem)
+                controller.prepare()
+                controller.play()
+            }
         }
     }
 
@@ -3780,6 +3809,14 @@ class PlayerViewModel @Inject constructor(
 
 
     override fun onCleared() {
+        mediaControllerPlaybackListener?.let { listener ->
+            mediaController?.removeListener(listener)
+            mediaControllerPlaybackListener = null
+        }
+        playbackStateHolder.setMediaController(null)
+        mediaController?.release()
+        mediaController = null
+        mediaControllerFuture.cancel(true)
         super.onCleared()
         remoteQueueLoadJob?.cancel()
         castSongUiSyncJob?.cancel()
@@ -4171,27 +4208,15 @@ class PlayerViewModel @Inject constructor(
 
     fun playSong(song: Song) {
         viewModelScope.launch {
-             val controller = mediaController ?: return@launch
-             
-             val mediaItem = MediaItem.Builder()
-                 .setMediaId(song.id)
-                 .setUri(Uri.parse(song.contentUriString ?: song.path))
-                 .setMediaMetadata(
-                     MediaMetadata.Builder()
-                         .setTitle(song.title)
-                         .setArtist(song.displayArtist)
-                         .setArtworkUri(if (song.albumArtUriString != null) Uri.parse(song.albumArtUriString) else null)
-                         .build()
-                 )
-                 .build()
-                 
-             controller.setMediaItem(mediaItem)
-             controller.prepare()
-             controller.play()
-             
-             // Also ensure sheet is visible
-             _isSheetVisible.value = true
-             _sheetState.value = PlayerSheetState.EXPANDED
+            val controller = mediaController ?: return@launch
+            val mediaItem = buildResolvedPlaybackMediaItem(song)
+
+            controller.setMediaItem(mediaItem)
+            controller.prepare()
+            controller.play()
+
+            _isSheetVisible.value = true
+            _sheetState.value = PlayerSheetState.EXPANDED
         }
     }
 

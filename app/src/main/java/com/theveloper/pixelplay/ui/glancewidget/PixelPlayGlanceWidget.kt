@@ -1052,7 +1052,7 @@ class PixelPlayGlanceWidget : GlanceAppWidget() {
                                             )
                                         )
                                     ),
-                                    bitmapData = queueItem.albumArtBitmapData,
+                                    bitmapData = null,
                                     albumArtUri = queueItem.albumArtUri,
                                     size = itemSize,
                                     context = context,
