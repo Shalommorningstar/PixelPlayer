@@ -38,6 +38,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,12 +46,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -257,6 +261,7 @@ fun PaletteStyleSettingsScreen(
                     PaletteAccuracySlider(
                         scheme = previewScheme,
                         value = pendingAccuracy,
+                        hapticsEnabled = uiState.hapticsEnabled,
                         onValueChange = { pendingAccuracy = it }
                     )
                 }
@@ -615,13 +620,21 @@ private fun PaletteSwatchSquare(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PaletteAccuracySlider(
     scheme: ColorScheme,
     value: Int,
+    hapticsEnabled: Boolean,
     onValueChange: (Int) -> Unit
 ) {
     val clampedValue = AlbumArtColorAccuracy.clamp(value)
+    val hapticFeedback = LocalHapticFeedback.current
+    var lastDispatchedValue by remember { mutableIntStateOf(clampedValue) }
+
+    LaunchedEffect(clampedValue) {
+        lastDispatchedValue = clampedValue
+    }
 
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -669,9 +682,25 @@ private fun PaletteAccuracySlider(
 
         Slider(
             value = clampedValue.toFloat(),
-            onValueChange = { onValueChange(AlbumArtColorAccuracy.clamp(it.roundToInt())) },
+            onValueChange = {
+                val nextValue = AlbumArtColorAccuracy.clamp(it.roundToInt())
+                if (nextValue == lastDispatchedValue) return@Slider
+
+                if (hapticsEnabled) {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+                lastDispatchedValue = nextValue
+                onValueChange(nextValue)
+            },
             valueRange = AlbumArtColorAccuracy.MIN.toFloat()..AlbumArtColorAccuracy.MAX.toFloat(),
-            steps = AlbumArtColorAccuracy.STEPS
+            steps = AlbumArtColorAccuracy.STEPS,
+            colors = SliderDefaults.colors(
+                thumbColor = scheme.primary,
+                activeTrackColor = scheme.primary,
+                inactiveTrackColor = scheme.surfaceContainerHighest,
+                activeTickColor = scheme.primary,
+                inactiveTickColor = scheme.onSurfaceVariant.copy(alpha = 0.22f)
+            )
         )
 
         Row(
