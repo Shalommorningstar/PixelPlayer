@@ -10,6 +10,9 @@ import com.theveloper.pixelplay.data.database.AiUsageDao
 import com.theveloper.pixelplay.data.database.AiUsageEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Dispatchers
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -247,7 +250,7 @@ class AiOrchestrator @Inject constructor(
 
                 // Low-maintenance usage tracking using highly accurate proportional estimation bounds (4 chars ~ 1 token)
                 // Models with "thinking" or "reasoning" generally output 2-3x internal tokens for complex generation
-                val isThinkingModel = finalSystemPrompt.contains("think", true) || requestedModel.contains("reasoning", true)
+                val isThinkingModel = finalSystemPrompt.contains("think", true) || provider.name.contains("reasoning", true)
                 val estimatedPromptTokens = (finalSystemPrompt.length + prompt.length) / 4
                 val estimatedOutputTokens = response.length / 4
                 val estimatedThoughtTokens = if (isThinkingModel) (estimatedOutputTokens * 1.5).toInt() else 0
@@ -257,7 +260,7 @@ class AiOrchestrator @Inject constructor(
                         AiUsageEntity(
                             timestamp = now,
                             provider = provider.displayName,
-                            model = requestedModel,
+                            model = provider.name,
                             promptType = type.name,
                             promptTokens = estimatedPromptTokens,
                             outputTokens = estimatedOutputTokens,

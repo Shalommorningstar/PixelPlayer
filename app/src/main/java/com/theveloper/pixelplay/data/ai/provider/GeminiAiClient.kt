@@ -21,6 +21,8 @@ class GeminiAiClient(private val apiKey: String) : AiClient {
             apiKey = apiKey,
             generationConfig = generationConfig {
                 temperature = temp
+                topK = 64
+                topP = 0.95f
             },
             systemInstruction = if (systemPrompt.isNotBlank()) {
                 com.google.ai.client.generativeai.type.content { text(systemPrompt) }

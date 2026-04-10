@@ -1132,10 +1132,10 @@ fun SettingsCategoryScreen(
                             Spacer(modifier = Modifier.height(16.dp))
 
                             SettingsSubsection(title = "AI Usage Report") {
-                                val recentAiUsage by settingsViewModel.recentAiUsage.collectAsState()
-                                val totalPromptTokens by settingsViewModel.totalPromptTokens.collectAsState()
-                                val totalOutputTokens by settingsViewModel.totalOutputTokens.collectAsState()
-                                val totalThoughtTokens by settingsViewModel.totalThoughtTokens.collectAsState()
+                                val recentAiUsage by settingsViewModel.recentAiUsage.collectAsStateWithLifecycle()
+                                val totalPromptTokens by settingsViewModel.totalPromptTokens.collectAsStateWithLifecycle()
+                                val totalOutputTokens by settingsViewModel.totalOutputTokens.collectAsStateWithLifecycle()
+                                val totalThoughtTokens by settingsViewModel.totalThoughtTokens.collectAsStateWithLifecycle()
 
                                 val totalTokens = totalPromptTokens + totalOutputTokens + totalThoughtTokens
 
@@ -1161,7 +1161,7 @@ fun SettingsCategoryScreen(
                                         subtitle = "View log of the ${recentAiUsage.size} most recent AI requests.",
                                         icon = {
                                             Icon(
-                                                painter = painterResource(R.drawable.outline_history_24),
+                                                painter = painterResource(R.drawable.rounded_monitoring_24),
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
