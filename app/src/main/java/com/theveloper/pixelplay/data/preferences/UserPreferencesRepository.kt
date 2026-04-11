@@ -1463,7 +1463,7 @@ constructor(
 
     val folderBackGestureNavigationFlow: Flow<Boolean> = dataStore.data
         .map { preferences ->
-            preferences[PreferencesKeys.FOLDER_BACK_GESTURE_NAVIGATION] ?: false
+            preferences[PreferencesKeys.FOLDER_BACK_GESTURE_NAVIGATION] ?: true
         }
 
     val useSmoothCornersFlow: Flow<Boolean> = dataStore.data
@@ -1538,11 +1538,11 @@ constructor(
 
     /**
      * Whether tapping the background area of the player sheet closes it.
-     * Default is true for intuitive dismissal, but power users may prefer to disable this.
+     * Default is false to avoid accidental dismissals while interacting with the full player.
      */
     val tapBackgroundClosesPlayerFlow: Flow<Boolean> =
         dataStore.data.map { preferences ->
-            preferences[PreferencesKeys.TAP_BACKGROUND_CLOSES_PLAYER] ?: true
+            preferences[PreferencesKeys.TAP_BACKGROUND_CLOSES_PLAYER] ?: false
         }
 
     suspend fun setTapBackgroundClosesPlayer(enabled: Boolean) {

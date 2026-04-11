@@ -68,7 +68,7 @@ data class SettingsUiState(
     val isCrossfadeEnabled: Boolean = false,
     val crossfadeDuration: Int = 2000,
     val persistentShuffleEnabled: Boolean = false,
-    val folderBackGestureNavigation: Boolean = false,
+    val folderBackGestureNavigation: Boolean = true,
     val lyricsSourcePreference: LyricsSourcePreference = LyricsSourcePreference.EMBEDDED_FIRST,
     val autoScanLrcFiles: Boolean = false,
     val blockedDirectories: Set<String> = emptySet(),
@@ -82,7 +82,7 @@ data class SettingsUiState(
     val usePlayerSheetV2: Boolean = true,
     // Developer Options
     val albumArtQuality: AlbumArtQuality = AlbumArtQuality.MEDIUM,
-    val tapBackgroundClosesPlayer: Boolean = true,
+    val tapBackgroundClosesPlayer: Boolean = false,
     val hapticsEnabled: Boolean = true,
     val immersiveLyricsEnabled: Boolean = false,
     val immersiveLyricsTimeout: Long = 4000L,

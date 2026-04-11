@@ -496,7 +496,7 @@ class PlayerViewModel @Inject constructor(
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = true
+            initialValue = false
         )
 
     val hapticsEnabled: StateFlow<Boolean> = userPreferencesRepository.hapticsEnabledFlow
@@ -1187,7 +1187,7 @@ class PlayerViewModel @Inject constructor(
         val navBarStyle: String = NavBarStyle.DEFAULT,
         val carouselStyle: String = CarouselStyle.NO_PEEK,
         val fullPlayerLoadingTweaks: FullPlayerLoadingTweaks = FullPlayerLoadingTweaks(),
-        val tapBackgroundClosesPlayer: Boolean = true,
+        val tapBackgroundClosesPlayer: Boolean = false,
         val useSmoothCorners: Boolean = true,
         val playerThemePreference: String = ThemePreference.ALBUM_ART
     )

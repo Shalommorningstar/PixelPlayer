@@ -57,6 +57,16 @@ private const val SONG_DETAIL_PROJECTION = """
     songs.source_type AS source_type
 """
 
+// Projection for list queries: excludes lyrics to prevent CursorWindow overflow (2MB limit)
+// when loading large libraries. Lyrics are only needed for the Now Playing screen (getSongById).
+private const val SONG_LIST_PROJECTION = """
+    id, title, artist_name, artist_id, album_artist, album_name, album_id,
+    content_uri_string, album_art_uri_string, duration, genre, file_path,
+    parent_directory_path, is_favorite, NULL AS lyrics, track_number, disc_number,
+    year, date_added, mime_type, bitrate, sample_rate, telegram_chat_id,
+    telegram_file_id, artists_json, source_type
+"""
+
 @Dao
 interface MusicDao {
 
@@ -320,8 +330,8 @@ interface MusicDao {
 
     // --- Song Queries ---
     // Updated getSongs to include Telegram songs (negative IDs) regardless of directory filter
-    @Query("""
-        SELECT * FROM songs
+    @Query("SELECT " + SONG_LIST_PROJECTION + """
+        FROM songs
         WHERE (:applyDirectoryFilter = 0 OR id < 0 OR parent_directory_path IN (:allowedParentDirs))
         ORDER BY title ASC
     """)
@@ -330,7 +340,7 @@ interface MusicDao {
         applyDirectoryFilter: Boolean
     ): Flow<List<SongEntity>>
 
-    @Query("SELECT * FROM songs WHERE id IN (:songIds)")
+    @Query("SELECT " + SONG_LIST_PROJECTION + " FROM songs WHERE id IN (:songIds)")
     suspend fun getSongsByIdsListSimple(songIds: List<Long>): List<SongEntity>
 
     @Query(
@@ -361,9 +371,8 @@ interface MusicDao {
     )
     suspend fun getSongByPath(path: String): SongEntity?
 
-    //@Query("SELECT * FROM songs WHERE id IN (:songIds)")
-    @Query("""
-        SELECT * FROM songs
+    @Query("SELECT " + SONG_LIST_PROJECTION + """
+        FROM songs
         WHERE id IN (:songIds)
         AND (:applyDirectoryFilter = 0 OR id < 0 OR parent_directory_path IN (:allowedParentDirs))
     """)
@@ -1198,7 +1207,7 @@ interface MusicDao {
     @Query("UPDATE songs SET lyrics = NULL")
     suspend fun resetAllLyrics()
 
-    @Query("SELECT * FROM songs")
+    @Query("SELECT " + SONG_LIST_PROJECTION + " FROM songs")
     suspend fun getAllSongsList(): List<SongEntity>
 
     @Query("SELECT id, title, artist_name, album_name, duration FROM songs WHERE source_type = 0")
