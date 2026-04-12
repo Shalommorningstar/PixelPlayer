@@ -1,5 +1,6 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
+import android.content.ComponentCallbacks2
 import android.os.Trace
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -205,11 +206,21 @@ class LibraryStateHolder @Inject constructor(
     private var albumsJob: Job? = null
     private var artistsJob: Job? = null
     private var foldersJob: Job? = null
+    @Volatile
+    private var needsReloadAfterTrim: Boolean = false
 
     fun startObservingLibraryData() {
-        if (songsJob?.isActive == true) return
+        if (
+            songsJob?.isActive == true &&
+            albumsJob?.isActive == true &&
+            artistsJob?.isActive == true &&
+            foldersJob?.isActive == true
+        ) {
+            return
+        }
 
         Log.d("LibraryStateHolder", "startObservingLibraryData called.")
+        needsReloadAfterTrim = false
 
         songsJob = scope?.launch {
             _isLoadingLibrary.value = true
@@ -510,6 +521,49 @@ class LibraryStateHolder @Inject constructor(
         scope?.launch {
             userPreferencesRepository.saveLastStorageFilter(filter)
         }
+    }
+
+    @Suppress("DEPRECATION")
+    fun trimMemory(level: Int) {
+        val shouldReleaseLibraryState =
+            level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND ||
+                level >= ComponentCallbacks2.TRIM_MEMORY_COMPLETE
+        if (!shouldReleaseLibraryState) return
+
+        val hasLoadedData =
+            _allSongs.value.isNotEmpty() ||
+                _albums.value.isNotEmpty() ||
+                _artists.value.isNotEmpty() ||
+                _musicFolders.value.isNotEmpty()
+        val hasActiveCollectors =
+            songsJob?.isActive == true ||
+                albumsJob?.isActive == true ||
+                artistsJob?.isActive == true ||
+                foldersJob?.isActive == true
+        if (!hasLoadedData && !hasActiveCollectors) return
+
+        songsJob?.cancel()
+        albumsJob?.cancel()
+        artistsJob?.cancel()
+        foldersJob?.cancel()
+        songsJob = null
+        albumsJob = null
+        artistsJob = null
+        foldersJob = null
+
+        _allSongs.value = persistentListOf()
+        _allSongsById.value = emptyMap()
+        _albums.value = persistentListOf()
+        _artists.value = persistentListOf()
+        _musicFolders.value = persistentListOf()
+        _isLoadingLibrary.value = false
+        _isLoadingCategories.value = false
+        needsReloadAfterTrim = true
+    }
+
+    fun restoreAfterTrimIfNeeded() {
+        if (!needsReloadAfterTrim || scope == null) return
+        startObservingLibraryData()
     }
 }
 
