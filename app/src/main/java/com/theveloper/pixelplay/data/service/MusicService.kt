@@ -187,7 +187,6 @@ class MusicService : MediaLibraryService() {
 
         private const val APP_PACKAGE_PREFIX = "com.theveloper.pixelplay"
         private val BLOCKED_WEAR_CONTROLLER_PREFIXES = listOf(
-            "android.media.session.MediaController",
             "com.google.android.wearable",
             "com.google.android.clockwork",
             "com.google.android.apps.wearable",

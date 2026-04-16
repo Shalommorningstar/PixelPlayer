@@ -407,17 +407,38 @@ class DualPlayerEngine @Inject constructor(
     fun setHiFiMode(enabled: Boolean) {
         if (hiFiModeEnabled == enabled) return
         hiFiModeEnabled = enabled
-        val wasPlayingA = playerA.isPlaying
-        val positionA = playerA.currentPosition
-        val mediaItemA = playerA.currentMediaItem
 
+        // Save full queue and playback state before releasing
+        val wasPlaying = playerA.isPlaying
+        val positionMs = playerA.currentPosition
+        val currentIndex = playerA.currentMediaItemIndex.coerceAtLeast(0)
+        val mediaItems = (0 until playerA.mediaItemCount).map { playerA.getMediaItemAt(it) }
+        val repeatMode = playerA.repeatMode
+        val shuffleMode = playerA.shuffleModeEnabled
+
+        playerA.removeListener(masterPlayerListener)
         playerA.release()
         playerB.release()
+
         playerA = buildPlayer(handleAudioFocus = false)
         playerB = buildPlayer(handleAudioFocus = false)
 
-        // Restore listeners
-        onPlayerSwappedListeners.forEach { /* listeners were attached to old instance, caller re-attaches */ }
+        // Re-attach listener to new master player
+        playerA.addListener(masterPlayerListener)
+
+        // Restore queue and position so playback continues seamlessly
+        if (mediaItems.isNotEmpty()) {
+            playerA.setMediaItems(mediaItems, currentIndex, positionMs)
+            playerA.repeatMode = repeatMode
+            playerA.shuffleModeEnabled = shuffleMode
+            playerA.prepare()
+            playerA.playWhenReady = wasPlaying
+        }
+
+        _activeAudioSessionId.value = playerA.audioSessionId
+
+        // Notify MusicService to reconnect MediaSession to the new player instance
+        onPlayerSwappedListeners.forEach { it(playerA) }
 
         Timber.tag("DualPlayerEngine").d("Hi-Fi mode set to $enabled — players rebuilt")
     }
