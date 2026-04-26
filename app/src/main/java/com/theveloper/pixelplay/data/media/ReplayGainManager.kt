@@ -21,6 +21,12 @@ import kotlin.math.pow
 @Singleton
 class ReplayGainManager @Inject constructor() {
 
+    // LRU cache: filePath -> ReplayGainValues
+    // Avoids re-reading tags on repeat, resume, or rapid track changes.
+    private val cache = object : LinkedHashMap<String, ReplayGainValues?>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: Map.Entry<String, ReplayGainValues?>) = size > 200
+    }
+
     companion object {
         private const val TAG = "ReplayGainManager"
 
@@ -54,23 +60,31 @@ class ReplayGainManager @Inject constructor() {
     fun readReplayGain(filePath: String): ReplayGainValues? {
         if (filePath.isBlank()) return null
 
+        // Return cached value if available — avoids expensive JNI tag read on repeat/resume
+        synchronized(cache) { cache[filePath] }?.let { return it }
+
         val file = File(filePath)
         if (!file.exists() || !file.canRead()) return null
 
         return try {
             ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
                 val metadata = TagLib.getMetadata(fd.detachFd(), readPictures = false)
-                val propertyMap = metadata?.propertyMap ?: return null
+                val propertyMap = metadata?.propertyMap ?: run {
+                    synchronized(cache) { cache[filePath] = null }
+                    return null
+                }
 
                 val trackGain = extractGainValue(propertyMap, TRACK_GAIN_KEYS)
                 val albumGain = extractGainValue(propertyMap, ALBUM_GAIN_KEYS)
 
                 if (trackGain == null && albumGain == null) {
+                    synchronized(cache) { cache[filePath] = null }
                     return null
                 }
 
                 ReplayGainValues(trackGainDb = trackGain, albumGainDb = albumGain).also {
                     Timber.tag(TAG).d("ReplayGain for ${file.name}: track=${it.trackGainDb}dB, album=${it.albumGainDb}dB")
+                    synchronized(cache) { cache[filePath] = it }
                 }
             }
         } catch (e: Exception) {

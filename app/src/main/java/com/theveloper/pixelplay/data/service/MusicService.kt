@@ -1038,6 +1038,12 @@ class MusicService : MediaLibraryService() {
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
             requestWidgetFullUpdate(force = true)
             schedulePlaybackSnapshotPersist(immediate = timeline.isEmpty)
+            // Pre-fetch RG for the next track so the cache is warm before playback starts
+            val player = engine.masterPlayer
+            val nextIndex = player.nextMediaItemIndex
+            if (nextIndex != androidx.media3.common.C.INDEX_UNSET) {
+                runCatching { prefetchReplayGain(player.getMediaItemAt(nextIndex)) }
+            }
         }
 
         override fun onPositionDiscontinuity(
@@ -1087,6 +1093,12 @@ class MusicService : MediaLibraryService() {
                 }
             }
             applyReplayGain(mediaSession?.player?.currentMediaItem)
+            // Pre-fetch RG for the track after this one so it's cached when needed
+            val player = engine.masterPlayer
+            val nextIndex = player.nextMediaItemIndex
+            if (nextIndex != androidx.media3.common.C.INDEX_UNSET) {
+                runCatching { prefetchReplayGain(player.getMediaItemAt(nextIndex)) }
+            }
             requestWidgetAndWearRefreshWithFollowUp()
             mediaSession?.let { refreshMediaSessionUiWithFollowUp(it) }
             schedulePlaybackSnapshotPersist()
@@ -1213,6 +1225,21 @@ class MusicService : MediaLibraryService() {
                     volume, mediaItem.mediaMetadata.title
                 )
             }
+        }
+    }
+
+    /**
+     * Pre-fetches ReplayGain tags for a media item into the cache without applying the volume.
+     * Called on queue changes and track transitions so the cache is warm by the time
+     * applyReplayGain() runs, avoiding the 1-2s JNI read delay on playback start.
+     */
+    private fun prefetchReplayGain(mediaItem: MediaItem?) {
+        if (!replayGainEnabled || mediaItem == null) return
+        val filePath = mediaItem.mediaMetadata.extras
+            ?.getString(MediaItemBuilder.EXTERNAL_EXTRA_FILE_PATH) ?: return
+        if (filePath.isBlank()) return
+        serviceScope.launch(Dispatchers.IO) {
+            replayGainManager.readReplayGain(filePath)
         }
     }
 
