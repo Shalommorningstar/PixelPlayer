@@ -1040,7 +1040,19 @@ class MusicService : MediaLibraryService() {
             if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION ||
                 reason == Player.DISCONTINUITY_REASON_SEEK
             ) {
-                applyReplayGain(mediaSession?.player?.currentMediaItem)
+                val currentItem = mediaSession?.player?.currentMediaItem
+                val oldMediaId = oldPosition.mediaItem?.mediaId
+                val newMediaId = newPosition.mediaItem?.mediaId
+                if (oldMediaId != null && oldMediaId == newMediaId) {
+                    // Same track (e.g. repeat, seek) — no IO needed, apply last known RG volume
+                    // immediately to avoid a spike while the coroutine reads tags again.
+                    lastAppliedReplayGainVolume?.let {
+                        if (!engine.isTransitionRunning()) setPlayerVolume(engine.masterPlayer, it)
+                    }
+                } else {
+                    // Different track — full recompute needed
+                    applyReplayGain(currentItem)
+                }
             }
         }
 
@@ -1207,6 +1219,10 @@ class MusicService : MediaLibraryService() {
             // pending was already applied to masterPlayer during the transition to ensure
             // volume is never lost if the transition was interrupted (e.g. user skipped).
             // Re-applying here is a no-op in volume terms but confirms the final state.
+            // Also update lastAppliedReplayGainVolume so any subsequent onPositionDiscontinuity
+            // (REASON_AUTO_TRANSITION fires right after crossfade ends) uses this value
+            // immediately instead of launching a new IO coroutine and causing a spike.
+            lastAppliedReplayGainVolume = pending
             setPlayerVolume(player, pending)
             Timber.tag(TAG).d("ReplayGain: Transition finished, confirmed pending volume=%.2f", pending)
         } else {
