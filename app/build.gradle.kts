@@ -63,8 +63,10 @@ android {
         }
 
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // GitHub release artifacts are debug-signed and optimized for fast sharing.
+            // Re-enable minify and resource shrinking in the future Play Store flavor.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -120,14 +122,14 @@ android {
         }
     }
 
-    // Keep everyday debug builds lean. Split APKs can still be enabled explicitly for release packaging.
+    // Keep local builds simple by default. CI enables split APKs so GitHub artifacts stay smaller.
     splits {
         abi {
             isEnable = enableAbiSplits
             reset()
             if (enableAbiSplits) {
                 include("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
-                isUniversalApk = true
+                isUniversalApk = false
             }
         }
     }
