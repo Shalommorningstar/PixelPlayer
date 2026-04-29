@@ -11,7 +11,7 @@ plugins {
 }
 
 val enableAbiSplits = providers.gradleProperty("pixelplay.enableAbiSplits")
-    .orElse("false")
+    .orElse("true")
     .map(String::toBoolean)
     .get()
 
@@ -63,10 +63,8 @@ android {
         }
 
         release {
-            // GitHub release artifacts are debug-signed and optimized for fast sharing.
-            // Re-enable minify and resource shrinking in the future Play Store flavor.
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -122,13 +120,13 @@ android {
         }
     }
 
-    // Keep local builds simple by default. CI enables split APKs so GitHub artifacts stay smaller.
+    // CI builds installable phone APKs per supported Android device ABI.
     splits {
         abi {
             isEnable = enableAbiSplits
             reset()
             if (enableAbiSplits) {
-                include("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+                include("arm64-v8a", "armeabi-v7a")
                 isUniversalApk = false
             }
         }
