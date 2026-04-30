@@ -18,6 +18,7 @@ import androidx.media3.common.util.UnstableApi
 import com.theveloper.pixelplay.data.database.DeviceCapabilitySongRow
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SourceType
+import com.theveloper.pixelplay.data.service.player.ActiveDecoderInfo
 import com.theveloper.pixelplay.data.service.player.DualPlayerEngine
 import com.theveloper.pixelplay.data.service.player.HiFiCapabilityChecker
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -132,6 +133,7 @@ data class DeviceCapabilitiesState(
     val playbackCompatibility: PlaybackCompatibilitySummary? = null,
     val formatSupport: List<FormatSupportInfo> = emptyList(),
     val memorySummary: MemorySummary? = null,
+    val decoderInfo: ActiveDecoderInfo? = null,
     val isLoading: Boolean = true
 )
 
@@ -143,7 +145,7 @@ private data class AudioFormatCandidate(
 
 @HiltViewModel
 class DeviceCapabilitiesViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val engine: DualPlayerEngine,
     private val musicDao: MusicDao
 ) : ViewModel() {
@@ -166,6 +168,7 @@ class DeviceCapabilitiesViewModel @Inject constructor(
                 val playback = getPlaybackCompatibilitySummary(libraryRows, audioCaps)
                 val formatSupport = getFormatSupport(libraryRows, audioCaps)
                 val memorySummary = getMemorySummary()
+                val decoderInfo = engine.activeDecoderInfo.value
 
                 DeviceCapabilitiesState(
                     deviceInfo = deviceInfo,
@@ -175,6 +178,7 @@ class DeviceCapabilitiesViewModel @Inject constructor(
                     playbackCompatibility = playback,
                     formatSupport = formatSupport,
                     memorySummary = memorySummary,
+                    decoderInfo = decoderInfo,
                     isLoading = false
                 )
             }
@@ -220,6 +224,7 @@ class DeviceCapabilitiesViewModel @Inject constructor(
     private fun getSupportedAudioCodecs(): List<CodecInfo> {
         val codecList = android.media.MediaCodecList(android.media.MediaCodecList.ALL_CODECS)
         val codecs = mutableListOf<CodecInfo>()
+        val isSamsung = Build.MANUFACTURER.lowercase(Locale.US) == "samsung"
 
         for (codecInfo in codecList.codecInfos) {
             if (codecInfo.isEncoder) continue
@@ -230,10 +235,13 @@ class DeviceCapabilitiesViewModel @Inject constructor(
                 .distinct()
             if (types.isEmpty()) continue
 
+            // On many Samsung devices, c2.sec.* codecs are high-performance hardware paths,
+            // but the platform doesn't always flag them as hardwareAccelerated in the manifest.
+            // We force report them as hardware in the UI if the name starts with c2.sec.
             val isHardware = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                codecInfo.isHardwareAccelerated
+                codecInfo.isHardwareAccelerated || (isSamsung && codecInfo.name.startsWith("c2.sec."))
             } else {
-                false
+                isSamsung && codecInfo.name.startsWith("c2.sec.")
             }
 
             val instances = try {

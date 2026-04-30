@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -53,6 +54,28 @@ class GDriveStreamProxy @Inject constructor(
     private var startJob: Job? = null
 
     fun isReady(): Boolean = actualPort > 0
+
+    fun startIfNeeded() {
+        if (isReady() || startJob?.isActive == true) return
+        start()
+    }
+
+    suspend fun awaitReady(timeoutMs: Long = 10_000L): Boolean {
+        if (isReady()) return true
+        val stepMs = 50L
+        var elapsed = 0L
+        while (elapsed < timeoutMs) {
+            if (isReady()) return true
+            delay(stepMs)
+            elapsed += stepMs
+        }
+        return false
+    }
+
+    suspend fun ensureReady(timeoutMs: Long = 10_000L): Boolean {
+        startIfNeeded()
+        return awaitReady(timeoutMs)
+    }
 
     fun getProxyUrl(fileId: String): String {
         if (actualPort == 0) {
