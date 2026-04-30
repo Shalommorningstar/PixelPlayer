@@ -4,6 +4,7 @@ hs_err_pid*.log
 *.salive
 *.apk
 *.aab
+**.jks
 
 .gradle
 .gradle-local/

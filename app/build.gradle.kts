@@ -58,12 +58,22 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    buildTypes {
+    signingConfigs {
+        create("release") {
+            storeFile = file("$rootDir/vz-pixelplay.jks")
+            storePassword = project.property("storePassword") as String
+            keyAlias = project.property("keyAlias") as String
+            keyPassword = project.property("keyPassword") as String
+        }
+    }
+
+buildTypes {
         debug {
             applicationIdSuffix = ".debug"
         }
 
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
