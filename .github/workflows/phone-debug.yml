@@ -27,9 +27,6 @@ jobs:
       - name: Build Phone debug APK
         run: gradle :app:assembleDebug -Ppixelplay.enableAbiSplits=true
 
-      - name: Submit dependency graph
-        uses: gradle/actions/submit-dependency-graph@v4
-
       - name: Verify Phone split APKs
         run: |
           BUILD_TOOLS_VERSION="$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)"

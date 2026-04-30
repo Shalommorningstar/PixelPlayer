@@ -27,9 +27,6 @@ jobs:
       - name: Build Wear OS debug APK
         run: gradle :wear:assembleDebug
 
-      - name: Submit dependency graph
-        uses: gradle/actions/submit-dependency-graph@v4
-
       - name: Upload Wear OS APK artifact
         uses: actions/upload-artifact@v4.6.1
         with:
