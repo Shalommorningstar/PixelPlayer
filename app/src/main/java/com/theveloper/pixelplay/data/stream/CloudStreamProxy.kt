@@ -5,8 +5,13 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.cio.CIO
+import io.ktor.server.engine.EmbeddedServer
+import io.ktor.server.engine.embeddedServer
 import io.ktor.server.engine.ApplicationEngine
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.routing.routing
+import io.ktor.server.cio.CIO
+import io.ktor.server.cio.CIOApplicationEngine
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytesWriter
@@ -168,16 +173,7 @@ abstract class CloudStreamProxy<K : Any>(
     }
 
     private fun createServer(port: Int): ApplicationEngine {
-        return embeddedServer(
-            CIO,
-            host = "127.0.0.1",
-            port = port,
-            configure = {
-                // Match our port-probing behavior and make fast restarts less likely to fail
-                // with "Address already in use" while sockets from the previous server drain.
-                reuseAddress = true
-            }
-        ) {
+        return embeddedServer(CIO, port = port, host = "127.0.0.1") {
             routing {
                 get(routePath) {
                     val rawParam = call.parameters[routeParamName]

@@ -1,12 +1,11 @@
 plugins {
     alias(libs.plugins.android.test)
-    alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.baselineprofile)
 }
 
 android {
     namespace = "com.theveloper.pixelplay.baselineprofile"
-    compileSdk = 36
+    compileSdk = 37
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
@@ -14,8 +13,8 @@ android {
     }
 
     defaultConfig {
-        minSdk = 29
-        targetSdk = 36
+        minSdk = 30
+        targetSdk = 37
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

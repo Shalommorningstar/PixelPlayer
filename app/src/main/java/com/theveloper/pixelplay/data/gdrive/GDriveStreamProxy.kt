@@ -5,7 +5,10 @@ import com.theveloper.pixelplay.data.stream.CloudStreamSecurity
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
-import io.ktor.server.engine.*
+import io.ktor.server.engine.ApplicationEngine
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.routing.routing
+import io.ktor.server.cio.CIO
 import io.ktor.server.cio.*
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytesWriter
@@ -130,15 +133,7 @@ class GDriveStreamProxy @Inject constructor(
     }
 
     private fun createServer(port: Int): ApplicationEngine {
-        return embeddedServer(
-            CIO,
-            host = "127.0.0.1",
-            port = port,
-            configure = {
-                // Keep behavior consistent with the other local proxies during quick restarts.
-                reuseAddress = true
-            }
-        ) {
+        return embeddedServer(CIO, port = port, host = "127.0.0.1") {
             routing {
                 get("/gdrive/{fileId}") {
                     val fileId = call.parameters["fileId"]

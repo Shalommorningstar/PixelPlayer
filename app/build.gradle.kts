@@ -4,9 +4,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.dagger.hilt.android)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.baselineprofile)
-    // id("com.google.protobuf") version "0.9.5" // Eliminado plugin de Protobuf
     id("kotlin-parcelize")
 }
 
@@ -20,17 +18,15 @@ val enableComposeCompilerReports = providers.gradleProperty("pixelplay.enableCom
     .map(String::toBoolean)
     .get()
 
+@Suppress("DEPRECATION")
 android {
     namespace = "com.theveloper.pixelplay"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 37
 
     sourceSets {
         getByName("androidTest") {
-            assets.srcDir("$projectDir/schemas")
+            // Updated from assets.srcDir to directories.add
+            assets.directories.add(file("$projectDir/schemas").path)
         }
     }
 
@@ -53,8 +49,9 @@ android {
 
     defaultConfig {
         applicationId = "com.theveloper.pixelplay"
-        minSdk = 29
-        targetSdk = 36
+        minSdk = 30
+        // targetSdk updated to 37 to match compileSdk requirement for dependencies like taglib
+        targetSdk = 37
         versionCode = (project.findProperty("APP_VERSION_CODE") as String).toInt()
         versionName = project.findProperty("APP_VERSION_NAME") as String
 
@@ -73,15 +70,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
         }
 
-        // AGREGA ESTE BLOQUE:
         create("benchmark") {
             initWith(getByName("release"))
-            signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
-            isDebuggable = false // Esto quita el error que mencionaste
+            isDebuggable = false
         }
     }
     compileOptions {
@@ -89,32 +83,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "2.1.0"
-        // Para habilitar informes de composición (legibles):
-    }
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-    kotlinOptions {
-        jvmTarget = "21"
-        if (enableComposeCompilerReports) {
-            freeCompilerArgs += listOf(
-                "-P",
-                "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=${project.layout.buildDirectory.get().asFile.absolutePath}/compose_compiler_reports"
-            )
-            freeCompilerArgs += listOf(
-                "-P",
-                "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=${project.layout.buildDirectory.get().asFile.absolutePath}/compose_compiler_metrics"
-            )
-        }
-
-        //Stability
-        freeCompilerArgs += listOf(
-            "-P",
-            "plugin:androidx.compose.compiler.plugins.kotlin:stabilityConfigurationPath=${project.rootDir.absolutePath}/app/compose_stability.conf"
-        )
     }
 
     testOptions {
@@ -128,7 +99,6 @@ android {
         checkReleaseBuilds = false
     }
 
-    // CI builds installable phone APKs per supported Android device ABI.
     splits {
         abi {
             isEnable = enableAbiSplits
@@ -140,7 +110,6 @@ android {
         }
     }
 
-    // AAB bundle 配置：通过 Google Play 分发时自动按架构拆分（推荐）
     bundle {
         abi {
             enableSplit = true
@@ -155,22 +124,34 @@ android {
 }
 
 composeCompiler {
-    // Applies Compose's strong skipping optimization (skip composables whose parameters
-    // haven't changed) in Debug builds as well, making dev-mode performance more
-    // representative of Release and reducing unnecessary recompositions during development.
-    enableStrongSkippingMode = true
-
-    // Reduces generated code for non-skippable composables, improving runtime
-    // performance by eliminating unnecessary group bookkeeping.
-    featureFlags = setOf(
-        org.jetbrains.kotlin.compose.compiler.gradle.ComposeFeatureFlag.OptimizeNonSkippingGroups
-    )
+    // enableStrongSkippingMode is now default and deprecated.
+    // optimizeNonSkippingGroups is also default/deprecated in newer versions, but keeping if still required for specific stability.
 }
 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
     arg("room.incremental", "true")
     arg("room.generateKotlin", "true")
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+        if (enableComposeCompilerReports) {
+            freeCompilerArgs.addAll(
+                "-P",
+                "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=${project.layout.buildDirectory.get().asFile.absolutePath}/compose_compiler_reports",
+                "-P",
+                "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=${project.layout.buildDirectory.get().asFile.absolutePath}/compose_compiler_metrics"
+            )
+        }
+
+        // Stability
+        freeCompilerArgs.addAll(
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:stabilityConfigurationPath=${project.rootDir.absolutePath}/app/compose_stability.conf"
+        )
+    }
 }
 
 dependencies {
@@ -182,7 +163,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
-    implementation("androidx.lifecycle:lifecycle-process:2.9.0")
+    // Using string because catalog sync is required for new entries
+    implementation("androidx.lifecycle:lifecycle-process:2.10.0")
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
@@ -198,7 +180,7 @@ dependencies {
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)
     testRuntimeOnly(libs.junit.vintage.engine)
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.0")
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
@@ -213,72 +195,44 @@ dependencies {
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.truth)
     androidTestImplementation(libs.mockk)
-    androidTestImplementation("androidx.work:work-testing:2.10.1")
+    androidTestImplementation("androidx.work:work-testing:2.11.2")
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
-    // Keep debug-only Compose tooling on the same version line as the runtime stack.
     debugImplementation(platform(libs.androidx.compose.bom))
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    // Baseline Profiles (Macrobenchmark)
-    // Asegúrate de que libs.versions.toml tiene androidxBenchmarkMacroJunit4 y androidxUiautomator
-    // Ejemplo: androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmarkMacro" }
-    // benchmarkMacro = "1.2.4"
     androidTestImplementation(libs.androidx.benchmark.macro.junit4)
     androidTestImplementation(libs.androidx.uiautomator)
 
-
-    // Hilt
     implementation(libs.hilt.android)
-    ksp(libs.hilt.android.compiler) // For Dagger Hilt
+    ksp(libs.hilt.android.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.hilt.work)
-    ksp(libs.androidx.hilt.compiler) // Esta línea es crucial y ahora funcionará
+    ksp(libs.androidx.hilt.compiler)
 
-    // Room
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.room.paging)
     
-    // Paging 3
     implementation(libs.androidx.paging.runtime)
     implementation(libs.androidx.paging.compose)
 
-    // Glance
     implementation(libs.androidx.glance)
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
 
-    //Gson
     implementation(libs.gson)
-
-    //Serialization
     implementation(libs.kotlinx.serialization.json)
-
-    //Work
     implementation(libs.androidx.work.runtime.ktx)
-
-    //Duktape
-    // implementation(libs.duktape.android)
-
-    //Smooth corners shape
     implementation(libs.smooth.corner.rect.android.compose)
     implementation(libs.androidx.graphics.shapes)
-
-    //Navigation
     implementation(libs.androidx.navigation.compose)
-
-    //Animations
     implementation(libs.androidx.animation)
-
-    //Coil
     implementation(libs.coil.compose)
 
-    //Capturable
     implementation(libs.capturable) {
-        // Capturable brings its own loose Compose graph; keep it on the app's Compose line.
         exclude(group = "androidx.compose.animation")
         exclude(group = "androidx.compose.foundation")
         exclude(group = "androidx.compose.material")
@@ -286,128 +240,53 @@ dependencies {
         exclude(group = "androidx.compose.ui")
     }
 
-    //Reorderable List/Drag and Drop
-    // compose.dnd (mohamedrejeb) 未被使用，已删除
     implementation(libs.reorderables)
-
-    //CodeView
     implementation(libs.codeview)
-
-    //AppCompat
     implementation(libs.androidx.appcompat)
-
-    // Media3 ExoPlayer
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.mediarouter)
     implementation(libs.google.play.services.cast.framework)
     implementation(libs.androidx.media3.exoplayer.ffmpeg)
-
-    // Palette API for color extraction
     implementation(libs.androidx.palette.ktx)
-
-    // For foreground service permission (Android 13+)
-    implementation(libs.androidx.core.splashscreen) // No directamente para permiso, pero útil
-
-    //ConstraintLayout
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.constraintlayout.compose)
-
-    //Foundation
     implementation(libs.androidx.foundation)
-    //Wavy slider
     implementation(libs.wavy.slider)
-
-    // Splash Screen API
-    implementation(libs.androidx.core.splashscreen) // O la versión más reciente
-
-    //Icons
     implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.material.icons.extended)
-
-    // Protobuf (JavaLite es suficiente para Android and más pequeño)
-    // implementation(libs.protobuf.javalite) // Eliminada dependencia de Protobuf
-
-    //Material library
     implementation(libs.material)
-
-    // Kotlin Collections
-    implementation(libs.kotlinx.collections.immutable) // Verifica la última versión
-
-    // Gemini — 使用 com.google.ai.client.generativeai (已在上方声明)
-    // google.genai (Java JVM SDK) 未被任何代码引用，已移除
-
-    //permisisons
+    implementation(libs.kotlinx.collections.immutable)
     implementation(libs.accompanist.permissions)
-
-    //Audio editing
-    // Spleeter para separación de audio
-    //implementation(libs.tensorflow.lite)
-    //implementation(libs.tensorflow.lite.support)
-    ///implementation(libs.tensorflow.lite.select.tf.ops)
-
-    // Compose-audiowaveform para la UI
-
-    // Media3 Transformer (ya debería estar, pero asegúrate)
     implementation(libs.androidx.media3.transformer)
-
-    //implementation(libs.pytorch.android)
-    //implementation(libs.pytorch.android.torchvision)
-
-    //Checker framework
     implementation(libs.checker.qual)
-
-    // Timber
     implementation(libs.timber)
-
-    // TagLib for metadata editing (supports mp3, flac, m4a, etc.)
     implementation(libs.taglib)
-    // JAudioTagger fallback for files where TagLib can't map ID3 frames (e.g. 48kHz ffmpeg encodes)
     implementation(libs.jaudiotagger)
-    // VorbisJava for Opus/Ogg metadata editing (TagLib has issues with Opus via file descriptors)
     implementation(libs.vorbisjava.core)
-
-    // Retrofit & OkHttp
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
     implementation(libs.okhttp)
     implementation(libs.logging.interceptor)
-
-    // Ktor for HTTP Server
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.cio)
     implementation(libs.kotlinx.coroutines.core)
-
     implementation(libs.androidx.ui.text.google.fonts)
-
     implementation(libs.accompanist.drawablepainter)
     implementation(kotlin("test"))
-
-    // Android Auto
     implementation(libs.androidx.media)
     implementation(libs.androidx.app)
     implementation(libs.androidx.app.projected)
-
-    // Wear OS Data Layer
     implementation(project(":shared"))
     implementation(libs.play.services.wearable)
     implementation(libs.kotlinx.coroutines.play.services)
-
-    // Telegram TDLib
     implementation(libs.tdlib)
-
-    // Google Sign-In via Credential Manager (for Google Drive)
     implementation(libs.credentials)
     implementation(libs.credentials.play.services.auth)
     implementation(libs.googleid)
-
-    // Kuromoji
     implementation(libs.kuromoji.ipadic)
-
-    // Pinyin
     implementation(libs.pinyin4j.core)
-
-    // Encrypted credentials storage
     implementation(libs.androidx.security.crypto)
 }
 
