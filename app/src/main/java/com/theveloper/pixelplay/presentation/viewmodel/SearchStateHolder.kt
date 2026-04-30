@@ -94,12 +94,24 @@ class SearchStateHolder @Inject constructor(
                         val resultsList = withContext(Dispatchers.IO) {
                             musicRepository.searchAll(normalizedQuery, currentFilter).first()
                         }
+                        
+                        // Sort: prioritize Song/Album matches over Artist/Playlist matches
+                        val sortedResults = resultsList.sortedWith(
+                            compareBy { result ->
+                                when (result) {
+                                    is SearchResultItem.SongItem -> 0
+                                    is SearchResultItem.AlbumItem -> 1
+                                    is SearchResultItem.ArtistItem -> 2
+                                    is SearchResultItem.PlaylistItem -> 3
+                                }
+                            }
+                        )
 
                         if (request.requestId != latestSearchRequestId.get()) {
                             return@collectLatest
                         }
 
-                        val immutableResults = resultsList.toImmutableList()
+                        val immutableResults = sortedResults.toImmutableList()
                         if (_searchResults.value != immutableResults) {
                             _searchResults.value = immutableResults
                         }

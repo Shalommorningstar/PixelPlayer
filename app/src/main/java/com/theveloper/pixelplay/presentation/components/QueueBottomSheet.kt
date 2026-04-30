@@ -426,10 +426,16 @@ fun QueueBottomSheet(
         reorderPreviewQueueSignature = displaySongsSignature
     }
 
-    // Jump directly to current song when it changes. Avoid a long animated scroll on large queues.
+    // Only jump to current song if the queue is *not* being manually modified.
+    // We can use the drag/reorder state as a signal to suppress this scroll.
     LaunchedEffect(currentSongDisplayIndex, displaySongCount) {
-        if (currentSongDisplayIndex >= 0 && currentSongDisplayIndex < displaySongCount) {
-            listState.scrollToItem(currentSongDisplayIndex)
+        if (!isReordering && !reorderHandleInUse && !draggingSheetFromList && currentSongDisplayIndex >= 0 && currentSongDisplayIndex < displaySongCount) {
+            // Check if we are already close enough to avoid unnecessary jumping
+            val firstVisible = listState.firstVisibleItemIndex
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            if (currentSongDisplayIndex !in firstVisible..lastVisible) {
+                listState.animateScrollToItem(currentSongDisplayIndex)
+            }
         }
     }
 

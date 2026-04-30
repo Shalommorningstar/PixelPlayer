@@ -689,12 +689,6 @@ class PlayerViewModel @Inject constructor(
 
                 val sortedIds = musicRepository.getSongIdsSorted(sortOption, storageFilter)
 
-                // Cloud sources (Telegram, Netease, GDrive, Navidrome, QQMusic, Jellyfin)
-                // sometimes hand the player a Song built directly from their source-specific
-                // repositories — those carry non-numeric ids like "chatId_messageId" or
-                // "netease_42". When the id can't be parsed as Long we fall back to looking
-                // up the unified-table id via content_uri_string, which is stable across
-                // both representations.
                 val unifiedId = currentSong.id.toLongOrNull()
                     ?: currentSong.contentUriString
                         .takeIf { it.isNotBlank() }
@@ -703,7 +697,15 @@ class PlayerViewModel @Inject constructor(
                 val index = unifiedId?.let { sortedIds.indexOf(it) } ?: -1
 
                 if (index != -1) {
-                    _scrollToIndexEvent.emit(index)
+                    // Retry loop to account for lazy-loading in LazyColumn
+                    var retries = 5
+                    while (retries > 0) {
+                        _scrollToIndexEvent.emit(index)
+                        delay(200) // Allow time for list to populate/scroll
+                        // Simple check: if list is large enough, assume success
+                        if (index < 1000) break 
+                        retries--
+                    }
                 } else {
                     sendToast(context.getString(R.string.player_song_not_found_in_list))
                 }
