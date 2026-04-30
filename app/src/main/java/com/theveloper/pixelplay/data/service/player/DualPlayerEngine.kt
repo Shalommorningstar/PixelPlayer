@@ -307,8 +307,8 @@ class DualPlayerEngine @Inject constructor(
             try { playerB.release() } catch (e: Exception) { /* Ignore */ }
         }
 
-        playerA = buildPlayer(handleAudioFocus = false)
-        playerB = buildPlayer(handleAudioFocus = false)
+        playerA = buildPlayer()
+        playerB = buildPlayer()
 
         playerA.addListener(masterPlayerListener)
         playerA.addAnalyticsListener(masterPlayerListener)
@@ -451,8 +451,8 @@ class DualPlayerEngine @Inject constructor(
         playerA.release()
         playerB.release()
 
-        playerA = buildPlayer(handleAudioFocus = false)
-        playerB = buildPlayer(handleAudioFocus = false)
+        playerA = buildPlayer()
+        playerB = buildPlayer()
 
         playerA.addListener(masterPlayerListener)
         playerA.addAnalyticsListener(masterPlayerListener)
@@ -475,7 +475,7 @@ class DualPlayerEngine @Inject constructor(
         Timber.tag("DualPlayerEngine").d(logMessage)
     }
 
-    private fun buildPlayer(handleAudioFocus: Boolean): ExoPlayer {
+    private fun buildPlayer(): ExoPlayer {
         val mediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
             val decoderInfos = MediaCodecSelector.DEFAULT.getDecoderInfos(
                 mimeType,
@@ -543,25 +543,14 @@ class DualPlayerEngine @Inject constructor(
             override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
                 val uri = dataSpec.uri
                 val scheme = uri.scheme
-                if (scheme == "telegram" || scheme == "netease" || scheme == "qqmusic" || scheme == "navidrome" || scheme == "jellyfin" || scheme == "gdrive") {
+                if (scheme in REMOTE_MEDIA_SCHEMES) {
                     val originalUri = uri.toString()
                     val resolved = resolvedUriCache.get(originalUri)
                     if (resolved != null) {
                         return dataSpec.buildUpon().setUri(resolved).build()
                     }
                     
-                    return try {
-                        Timber.tag("DualPlayerEngine").d("resolveDataSpec: Cache MISS for %s", scheme)
-                        val resolvedSync = runBlocking { resolveCloudUri(uri) }
-                        if (resolvedSync != uri) {
-                            dataSpec.buildUpon().setUri(resolvedSync).build()
-                        } else {
-                            dataSpec
-                        }
-                    } catch (e: Exception) {
-                        Timber.tag("DualPlayerEngine").e(e, "resolveDataSpec: Synchronous resolution failed")
-                        dataSpec
-                    }
+                    Timber.tag("DualPlayerEngine").d("resolveDataSpec: Cache MISS for %s - attempting to use original URI", scheme)
                 }
                 return dataSpec
             }
@@ -580,7 +569,7 @@ class DualPlayerEngine @Inject constructor(
             .setMediaSourceFactory(DefaultMediaSourceFactory(resolvingFactory, extractorsFactory))
             .setLoadControl(loadControl)
             .build().apply {
-            setAudioAttributes(audioAttributes, handleAudioFocus)
+            setAudioAttributes(audioAttributes, false)
             val offloadPreferences = TrackSelectionParameters.AudioOffloadPreferences.Builder()
                 .setAudioOffloadMode(
                     if (audioOffloadEnabled) {
@@ -833,7 +822,7 @@ class DualPlayerEngine @Inject constructor(
         playerB.stop()
         playerB.clearMediaItems()
         playerB.release()
-        playerB = buildPlayer(handleAudioFocus = false)
+        playerB = buildPlayer()
 
         setPauseAtEndOfMediaItems(false)
     }
