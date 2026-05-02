@@ -2192,7 +2192,7 @@ class PlayerViewModel @Inject constructor(
 
                 if (songsList.isNotEmpty()) {
                     val sortedSongs = songsList.sortedWith(
-                        compareBy<Song> { it.discNumber }
+                        compareBy<Song> { it.discNumber ?: 1 }
                             .thenBy { if (it.trackNumber > 0) it.trackNumber else Int.MAX_VALUE }
                             .thenBy { it.title.lowercase() }
                     )
@@ -3592,7 +3592,7 @@ class PlayerViewModel @Inject constructor(
 
     private fun sortSongsForAlbumSelection(songs: List<Song>): List<Song> {
         return songs.sortedWith(
-            compareBy<Song> { it.discNumber }
+            compareBy<Song> { it.discNumber ?: 1 }
                 .thenBy { if (it.trackNumber > 0) it.trackNumber else Int.MAX_VALUE }
                 .thenBy { it.title.lowercase(Locale.getDefault()) }
         )
