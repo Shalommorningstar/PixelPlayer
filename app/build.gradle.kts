@@ -159,6 +159,14 @@ composeCompiler {
     )
 }
 
+baselineProfile {
+    // Keep release builds fast to invoke locally, but make generated profiles usable as
+    // startup dex-layout input once they are checked into the app.
+    automaticGenerationDuringBuild = false
+    saveInSrc = true
+    dexLayoutOptimization = true
+}
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
     arg("room.incremental", "true")
