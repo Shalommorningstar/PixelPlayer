@@ -121,7 +121,11 @@ class BaselineProfileGenerator {
             }
             waitForLibraryRefresh()
             pressBackAndWait()
-            pressBackAndWait()
+            tap(
+                (device.displayWidth * 0.82).toInt(),
+                (device.displayHeight * 0.94).toInt(),
+                "open Library tab after refresh"
+            )
         }
 
         clickTab("Library|Biblioteca")
@@ -563,6 +567,17 @@ class BaselineProfileGenerator {
     private fun MacrobenchmarkScope.pressBackAndWait() {
         assertAppForeground("Before pressing back")
         device.pressBack()
+        waitForUi(requireApp = false)
+        if (device.hasObject(By.pkg(benchmarkTargetPackageName()))) {
+            return
+        }
+
+        Log.w(TAG, "Back left the target app; relaunching benchmark activity.")
+        startActivityAndWait { intent ->
+            intent.putExtra(BENCHMARK_EXTRA, true)
+        }
+        waitForTargetPackageVisible(benchmarkTargetPackageName(), APP_START_TIMEOUT_MS)
+        waitForAppForeground("After relaunching from Back fallback")
         waitForUi()
     }
 
